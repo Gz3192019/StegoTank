@@ -107,6 +107,12 @@ val features = listOf(
         avatarRes = R.drawable.avatar_coil
     ),
     FeatureItem(
+        id = "jpeg", title = "JPEG 隐写", tag = "J",
+        subtitle = "JSteg · DCT 系数隐写，抗再压缩",
+        color = Color(0xFF00A3C4),
+        avatarRes = R.drawable.avatar_coil
+    ),
+    FeatureItem(
         id = "detect", title = "隐写检测", tag = "检",
         subtitle = "扫描图片是否疑似藏入数据",
         color = Color(0xFFFF375F),
@@ -245,16 +251,23 @@ fun TuyinSuiteApp() {
             FeatureScreen(
                 item = features.first { it.id == route.id },
                 onBack = { navigator.pop() },
-                onOpenHistory = { navigator.push(Route.History) }
+                onOpenHistory = { navigator.push(Route.History) },
+                loadPath = route.loadPath
             )
         }
         // 设置页：支持左→右跟手返回
         entry<Route.Settings>(swipeDismiss = NavSwipeDirection.LeftToRight) {
-            SettingsScreen(onBack = { navigator.pop() })
+            SettingsScreen(
+                onBack = { navigator.pop() },
+                onOpenHistory = { navigator.push(Route.History) }
+            )
         }
-        // 嵌入历史页：支持左→右跟手返回
+        // 历史记录页：支持左→右跟手返回；点击记录跳转对应模块并加载图片
         entry<Route.History>(swipeDismiss = NavSwipeDirection.LeftToRight) {
-            HistoryScreen(onBack = { navigator.pop() })
+            HistoryScreen(
+                onBack = { navigator.pop() },
+                onOpenModule = { module, path -> navigator.push(Route.Feature(module, path)) }
+            )
         }
     }
 }
