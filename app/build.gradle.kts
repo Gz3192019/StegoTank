@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -13,8 +13,8 @@ android {
         applicationId = "com.setgo.tank"
         minSdk = 33
         targetSdk = 37
-        versionCode = 71
-        versionName = "v1.0.5"
+        versionCode = 75
+        versionName = "v0.2.0.28.bate"
     }
 
     buildFeatures {
@@ -68,3 +68,4 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 }
+
