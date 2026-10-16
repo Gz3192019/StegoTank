@@ -127,6 +127,7 @@ private fun FeatureCard(item: FeatureItem, onClick: () -> Unit) {
         "prism" -> t("光棱坦克", "光稜坦克", "Prism Tank")
         "arnold" -> t("图片混淆", "圖片混淆", "Image Scramble")
         "lsb" -> t("LSB 隐写", "LSB 隱寫", "LSB Stegano")
+        "jpeg" -> t("JPEG 隐写", "JPEG 隱寫", "JPEG Stegano")
         "detect" -> t("隐写检测", "隱寫檢測", "Stego Detect")
         else -> item.title
     }
@@ -136,6 +137,7 @@ private fun FeatureCard(item: FeatureItem, onClick: () -> Unit) {
         "prism" -> t("棱镜级光学变换隐写", "棱鏡級光學變換隱寫", "Prism-grade optical steganography")
         "arnold" -> t("Arnold 置乱，图像像素级打乱", "Arnold 置亂，圖像像素級打亂", "Arnold cat-map pixel shuffling")
         "lsb" -> t("把文字或文件藏进像素末位", "把文字或檔案藏進像素末位", "Hide text or files in pixel LSBs")
+        "jpeg" -> t("JSteg · 藏进 JPEG 的 DCT 系数，抗再压缩", "JSteg · 藏進 JPEG 的 DCT 係數，抗再壓縮", "JSteg · hide in JPEG DCT coefficients, compression-proof")
         "detect" -> t("扫描图片是否疑似藏入数据", "掃描圖片是否疑似藏入資料", "Scan if an image hides data")
         else -> item.subtitle
     }
@@ -457,13 +459,19 @@ private fun rememberOpenUrl(): (String) -> Unit {
 
 /** 二级页：按功能分发（已实现的功能走对应页面） */
 @Composable
-fun FeatureScreen(item: FeatureItem, onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
+fun FeatureScreen(
+    item: FeatureItem,
+    onBack: () -> Unit,
+    onOpenHistory: () -> Unit = {},
+    loadPath: String? = null
+) {
     when (item.id) {
-        "rac" -> RacScreen(onBack = onBack)
-        "phantom" -> MirageTankScreen(onBack = onBack)
-        "prism" -> PrismTankScreen(onBack = onBack)
-        "arnold" -> ArnoldScreen(onBack = onBack)
-        "lsb" -> LsbScreen(onBack = onBack, onOpenHistory = onOpenHistory)
+        "rac" -> RacScreen(onBack = onBack, loadPath = loadPath)
+        "phantom" -> MirageTankScreen(onBack = onBack, loadPath = loadPath)
+        "prism" -> PrismTankScreen(onBack = onBack, loadPath = loadPath)
+        "arnold" -> ArnoldScreen(onBack = onBack, loadPath = loadPath)
+        "lsb" -> LsbScreen(onBack = onBack, onOpenHistory = onOpenHistory, loadPath = loadPath)
+        "jpeg" -> JpegScreen(onBack = onBack)
         "detect" -> DetectScreen(onBack = onBack)
         else -> FeaturePlaceholder(item = item, onBack = onBack)
     }
