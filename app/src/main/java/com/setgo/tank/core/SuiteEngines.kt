@@ -2,7 +2,9 @@ package com.setgo.tank.core
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.sqrt
 
 /**
  * 图隐套件三大图片玩法引擎：
@@ -347,14 +349,15 @@ object SuiteEngines {
     // ---------- 图片混淆（多算法，参考 2195517546/ObfuscationUtils） ----------
 
     enum class ScrambleAlgo(val label: String, val needsKey: Boolean, val hint: String) {
-        Tomato("番茄", true, "数字密钥，全局像素置乱"),
+        Tomato("全局置乱", true, "数字密钥，全局像素置乱"),
         Block("分块", true, "8×8 分块，块内按密钥打乱"),
         RowPixel("行像素", true, "逐行像素按密钥打乱"),
         PerPixel("像素级", true, "逐像素通道交换 + 异或"),
-        PicEncryptRow("行加密", true, "浮点密钥，按行循环平移"),
-        PicEncryptRowColumn("行列", true, "浮点密钥，行列双重平移"),
+        PicEncryptRow("行平移", true, "浮点密钥，按行循环平移"),
+        PicEncryptRowColumn("行列平移", true, "浮点密钥，行列双重平移"),
         Sort("排序", false, "按亮度排序，无需密钥"),
-        Random("随机", true, "种子随机置乱")
+        Random("种子随机", true, "种子随机置乱"),
+        Gilbert("Gilbert曲线", false, "Gilbert 曲线重排，固定偏移，无需密钥")
     }
 
     /**
@@ -464,6 +467,19 @@ object SuiteEngines {
                 if (!reverse) { for (i in 0 until n) px[i] = tmp[idx[i]] }
                 else { for (i in 0 until n) px[idx[i]] = tmp[i] }
             }
+            ScrambleAlgo.Gilbert -> {
+                // Gilbert 空间填充曲线：把二维像素映射为一维序列，再沿序列按固定偏移循环平移。
+                // 偏移量固定（无需密钥）：floor((√5-1)/2 * totalPixels) % totalPixels，正反互为逆。
+                val curve = gilbertCurve(w, h)
+                val off = gilbertShift(n)
+                val tmp = IntArray(n)
+                if (!reverse) {
+                    for (i in 0 until n) tmp[curve[(i + off) % n]] = px[curve[i]]
+                } else {
+                    for (i in 0 until n) tmp[curve[i]] = px[curve[(i + off) % n]]
+                }
+                System.arraycopy(tmp, 0, px, 0, n)
+            }
         }
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         out.setPixels(px, 0, w, 0, 0, w, h)
@@ -489,4 +505,59 @@ object SuiteEngines {
         val tmp = px.copyOf()
         for (i in px.indices) px[perm[i]] = tmp[i]
     }
+
+    // ---------- Gilbert 空间填充曲线（参考 moxuangenet 图片混淆 / jakubcerveny-gilbert 算法） ----------
+
+    /** Gilbert 固定偏移量：floor((√5-1)/2 * totalPixels) % totalPixels，无密钥、固定、自动可逆。 */
+    private fun gilbertShift(totalPixels: Int): Int {
+        val n = totalPixels
+        if (n <= 0) return 0
+        return (floor(((sqrt(5.0) - 1.0) / 2.0) * n) % n).toInt()
+    }
+
+    /**
+     * 生成覆盖 w×h 图像的 Gilbert 曲线访问顺序（恰好 w*h 个点）。
+     * 算法：jakubcerveny/gilbert 官方 generate2d（BSD-2-Clause）——广义 Hilbert 空间填充曲线，
+     * 对任意矩形直接递归分治，无 2 的幂限制、无越界点。
+     */
+    private fun gilbertCurve(w: Int, h: Int): IntArray {
+        val curve = IntArray(w * h)
+        var count = 0
+        fun rec(x: Int, y: Int, ax: Int, ay: Int, bx: Int, by: Int) {
+            val cw = abs(ax + ay)
+            val ch = abs(bx + by)
+            val dax = if (ax > 0) 1 else if (ax < 0) -1 else 0
+            val day = if (ay > 0) 1 else if (ay < 0) -1 else 0
+            val dbx = if (bx > 0) 1 else if (bx < 0) -1 else 0
+            val dby = if (by > 0) 1 else if (by < 0) -1 else 0
+            if (ch == 1) {
+                var cx = x; var cy = y
+                for (i in 0 until cw) { curve[count++] = cy * w + cx; cx += dax; cy += day }
+                return
+            }
+            if (cw == 1) {
+                var cx = x; var cy = y
+                for (i in 0 until ch) { curve[count++] = cy * w + cx; cx += dbx; cy += dby }
+                return
+            }
+            var ax2 = Math.floorDiv(ax, 2); var ay2 = Math.floorDiv(ay, 2)
+            var bx2 = Math.floorDiv(bx, 2); var by2 = Math.floorDiv(by, 2)
+            val w2 = abs(ax2 + ay2)
+            val h2 = abs(bx2 + by2)
+            if (2 * cw > 3 * ch) {
+                if (w2 % 2 == 1 && cw > 2) { ax2 += dax; ay2 += day }
+                rec(x, y, ax2, ay2, bx, by)
+                rec(x + ax2, y + ay2, ax - ax2, ay - ay2, bx, by)
+            } else {
+                if (h2 % 2 == 1 && ch > 2) { bx2 += dbx; by2 += dby }
+                rec(x, y, bx2, by2, ax2, ay2)
+                rec(x + bx2, y + by2, ax, ay, bx - bx2, by - by2)
+                rec(x + (ax - dax) + (bx2 - dbx), y + (ay - day) + (by2 - dby), -bx2, -by2, -(ax - ax2), -(ay - ay2))
+            }
+        }
+        if (w >= h) rec(0, 0, w, 0, 0, h) else rec(0, 0, 0, h, w, 0)
+        return curve
+    }
+
+    private fun floor(v: Double): Double = kotlin.math.floor(v)
 }
