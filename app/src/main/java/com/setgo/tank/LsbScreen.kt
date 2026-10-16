@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,16 +48,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.setgo.tank.core.LsbHistory
 import com.setgo.tank.core.LsbTank
 import com.setgo.tank.core.TuyinImages
+import com.setgo.tank.core.UnifiedHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** LSB 隐写二级页：把文本或任意文件藏进 PNG 像素末位（2-bit/通道），可选密码加密。 */
 @Composable
-fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
+fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}, loadPath: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -75,6 +76,23 @@ fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
     var extractedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var extractedType by remember { mutableIntStateOf(LsbTank.TYPE_TEXT) }
 
+    // 历史记录跳转加载：把历史缩略图作为载体图载入（可继续嵌入）
+    LaunchedEffect(loadPath) {
+        val p = loadPath
+        if (p != null) {
+            try {
+                val bmp = withContext(Dispatchers.Default) { TuyinImages.decodeFileScaled(p, 2048) }
+                if (bmp != null) {
+                    mode = false
+                    carrierBmp = bmp
+                    status = t("已加载历史图片，可继续嵌入", "已載入歷史圖片，可繼續嵌入", "History image loaded as carrier")
+                } else {
+                    status = t("历史图片读取失败", "歷史圖片讀取失敗", "Failed to load history image")
+                }
+            } catch (e: Exception) { status = t("读取图片失败：", "讀取圖片失敗：", "Failed to read image: ") + e.message }
+        }
+    }
+
     var pendingSave by remember { mutableStateOf<(() -> Unit)?>(null) }
     val writePermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) pendingSave?.invoke()
@@ -83,6 +101,7 @@ fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
         if (bmp == null) { status = t("还没有可保存的图片", "還沒有可保存的圖片", "Nothing to save yet"); return }
         val doSave: () -> Unit = { scope.launch {
             val ok = withContext(Dispatchers.Default) { TuyinImages.saveBitmapToGallery(context, bmp, name, "image/png", 100) }
+            if (ok) UnifiedHistory.add(context, "lsb", "save", bmp)
             status = if (ok) t("已保存到相册", "已保存到相冊", "Saved to gallery") else t("保存失败", "保存失敗", "Save failed")
         } }
         if (Build.VERSION.SDK_INT <= 28 &&
@@ -156,13 +175,7 @@ fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
                 resultBmp = withContext(Dispatchers.Default) {
                     LsbTank.encode(c, if (textMode) LsbTank.TYPE_TEXT else LsbTank.TYPE_FILE, data, pwd)
                 }
-                LsbHistory.add(context, LsbHistory.Entry(
-                    ts = System.currentTimeMillis(),
-                    type = if (textMode) LsbTank.TYPE_TEXT else LsbTank.TYPE_FILE,
-                    summary = if (textMode) textInput else fileName,
-                    size = data.size,
-                    encrypted = encrypted
-                ))
+                UnifiedHistory.add(context, "lsb", "encode", resultBmp)
                 status = if (encrypted) t("嵌入完成（已加密），肉眼几乎看不出差异", "嵌入完成（已加密），肉眼幾乎看不出差異", "Done (encrypted), visually identical")
                 else t("嵌入完成，肉眼几乎看不出差异", "嵌入完成，肉眼幾乎看不出差異", "Done, visually identical")
             } catch (e: Exception) { status = t("嵌入失败：", "嵌入失敗：", "Failed: ") + e.message }
@@ -227,8 +240,8 @@ fun LsbScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        BasicText(t("嵌入历史", "嵌入歷史", "History"), style = TextStyle(color = SuTitle, fontSize = 14.sp, fontWeight = FontWeight.Medium))
-                        BasicText(t("查看 LSB 嵌入记录", "查看 LSB 嵌入記錄", "View LSB embed records"), style = TextStyle(color = SuSub, fontSize = 12.sp))
+                        BasicText(t("历史记录", "歷史記錄", "History"), style = TextStyle(color = SuTitle, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+                        BasicText(t("查看所有功能的操作记录", "查看所有功能的操作記錄", "View all feature history"), style = TextStyle(color = SuSub, fontSize = 12.sp))
                     }
                     BasicText("›", style = TextStyle(color = SuSub, fontSize = 22.sp), modifier = Modifier.padding(start = 8.dp))
                 }
