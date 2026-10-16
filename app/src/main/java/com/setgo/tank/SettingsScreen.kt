@@ -42,9 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** 设置页（v0.1.32 宽松版）：主题颜色（莫奈取色 + 色块，联动全 App 卡片）/ 预返回 / 语言 */
+/** 设置页（v0.1.32 宽松版）：主题颜色（莫奈取色 + 色块，联动全 App 卡片）/ 预返回 / 语言 / 历史记录 */
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onOpenHistory: () -> Unit = {}) {
     val scrollState = rememberScrollState()
 
     Column(modifier = Modifier.fillMaxSize().background(SuBg)) {
@@ -157,6 +157,24 @@ fun SettingsScreen(onBack: () -> Unit) {
                             }
                         }
                     }
+                }
+            }
+
+            // ===== 历史记录（聚合所有功能模块）=====
+            SuiteCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onOpenHistory)
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        BasicText(t("历史记录", "歷史記錄", "History"), style = TextStyle(color = SuTitle, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+                        BasicText(t("LSB / RAC / 幻影 / 光棱 / 混淆的操作记录，点击可跳转", "LSB / RAC / 幻影 / 光棱 / 混淆的操作記錄，點擊可跳轉", "Records from LSB / RAC / Phantom / Prism / Scramble; tap to jump"), style = TextStyle(color = SuSub, fontSize = 12.sp))
+                    }
+                    BasicText("›", style = TextStyle(color = SuSub, fontSize = 22.sp), modifier = Modifier.padding(start = 8.dp))
                 }
             }
 
