@@ -17,10 +17,10 @@ sealed interface Route : NavKey, Parcelable {
     @Serializable
     data object Main : Route
 
-    /** 功能二级页（RAC / 幻影 / 光棱 / 混淆） */
+    /** 功能二级页（RAC / 幻影 / 光棱 / 混淆 / LSB 等）；loadPath 为历史记录跳转携带的图片路径 */
     @Parcelize
     @Serializable
-    data class Feature(val id: String) : Route
+    data class Feature(val id: String, val loadPath: String? = null) : Route
 
     /** 设置页 */
     @Parcelize
