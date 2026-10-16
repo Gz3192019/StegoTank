@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import com.setgo.tank.core.SuiteEngines
 import com.setgo.tank.core.SuiteEngines.CoverProcess
 import com.setgo.tank.core.SuiteEngines.PrismMethod
 import com.setgo.tank.core.TuyinImages
+import com.setgo.tank.core.UnifiedHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -56,10 +58,11 @@ import kotlinx.coroutines.withContext
 
 /** 光棱坦克二级页：原版算法（Uyanide/Mirage_Decode）——生成（棋盘穿插）+ 显影（阈值放大）。 */
 @Composable
-fun PrismTankScreen(onBack: () -> Unit) {
+fun PrismTankScreen(onBack: () -> Unit, loadPath: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+
     var mode by remember { mutableStateOf(false) } // false=生成, true=显影
     var frontBmp by remember { mutableStateOf<Bitmap?>(null) }
     var backBmp by remember { mutableStateOf<Bitmap?>(null) }
@@ -78,6 +81,23 @@ fun PrismTankScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf("") }
     var previewJob by remember { mutableStateOf<Job?>(null) }
 
+    // 历史记录跳转加载：把历史缩略图作为表图载入（可继续生成）
+    LaunchedEffect(loadPath) {
+        val p = loadPath
+        if (p != null) {
+            try {
+                val bmp = withContext(Dispatchers.Default) { TuyinImages.decodeFileScaled(p, 2048) }
+                if (bmp != null) {
+                    mode = false
+                    frontBmp = bmp
+                    status = t("已加载历史图片作为表图", "已載入歷史圖片作為表圖", "History image loaded as cover")
+                } else {
+                    status = t("历史图片读取失败", "歷史圖片讀取失敗", "Failed to load history image")
+                }
+            } catch (e: Exception) { status = t("读取图片失败：", "讀取圖片失敗：", "Failed to read image: ") + e.message }
+        }
+    }
+
     var pendingSave by remember { mutableStateOf<(() -> Unit)?>(null) }
     val writePermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) pendingSave?.invoke()
@@ -86,6 +106,7 @@ fun PrismTankScreen(onBack: () -> Unit) {
         if (bmp == null) { status = t("还没有可保存的图片", "還沒有可保存的圖片", "Nothing to save yet"); return }
         val doSave: () -> Unit = { scope.launch {
             val ok = withContext(Dispatchers.Default) { TuyinImages.saveBitmapToGallery(context, bmp, name, "image/png", 100) }
+            if (ok) UnifiedHistory.add(context, "prism", "save", bmp)
             status = if (ok) t("已保存到相册", "已保存到相冊", "Saved to gallery") else t("保存失败", "保存失敗", "Save failed")
         } }
         if (Build.VERSION.SDK_INT <= 28 &&
@@ -132,6 +153,7 @@ fun PrismTankScreen(onBack: () -> Unit) {
                     SuiteEngines.prismTank(f, b, innerTh, coverTh, method, coverGray, encodeRev)
                 }
                 resultBmp = out
+                UnifiedHistory.add(context, "prism", "encode", out)
                 previewBmp = withContext(Dispatchers.Default) {
                     SuiteEngines.prismReveal(out, revealTh, decodeRev, coverProc)
                 }
