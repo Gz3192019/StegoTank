@@ -38,6 +38,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SliderDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ import androidx.core.content.ContextCompat
 import com.setgo.tank.core.TuyinCore
 import com.setgo.tank.core.TuyinImages
 import com.setgo.tank.core.TuyinRuler
+import com.setgo.tank.core.UnifiedHistory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -118,7 +120,7 @@ private const val MAX_TARGET_PIXELS = 24_000_000L
 
 /** RAC 图隐二级页：嵌入 / 提取（功能与旧版 App 对齐，一个不差） */
 @Composable
-fun RacScreen(onBack: () -> Unit) {
+fun RacScreen(onBack: () -> Unit, loadPath: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -160,6 +162,25 @@ fun RacScreen(onBack: () -> Unit) {
     var extractResultBmp by remember { mutableStateOf<Bitmap?>(null) }
     var customDialog by remember { mutableStateOf(false) }
     var customInput by remember { mutableStateOf("") }
+
+    // 历史记录跳转加载：把历史缩略图作为封面图载入（可继续嵌入）
+    LaunchedEffect(loadPath) {
+        val p = loadPath
+        if (p != null) {
+            try {
+                val bmp = withContext(Dispatchers.Default) { TuyinImages.decodeFileScaled(p, 2048) }
+                if (bmp != null) {
+                    mode = true
+                    coverData = TuyinImages.bitmapToImageData(bmp)
+                    coverBmp = bmp
+                    payloadBytes = 0
+                    embedStatus = t("已加载历史图片作为封面", "已載入歷史圖片作為封面", "History image loaded as cover")
+                } else {
+                    embedStatus = t("历史图片读取失败", "歷史圖片讀取失敗", "Failed to load history image")
+                }
+            } catch (e: Exception) { embedStatus = t("读取图片失败：", "讀取圖片失敗：", "Failed to read image: ") + friendlyError(e) }
+        }
+    }
 
     fun currentOptions(): TuyinCore.Options {
         val o = TuyinCore.Options()
@@ -257,6 +278,7 @@ fun RacScreen(onBack: () -> Unit) {
                 stegoData = stego
                 stegoBmp = TuyinImages.imageDataToBitmap(stego)
                 stegoResultBmp = stegoBmp
+                UnifiedHistory.add(context, "rac", "encode", stegoBmp)
                 embedProgress = 1f
                 val w = stego.width; val h = stego.height
                 embedStatus = t("嵌入完成 ", "嵌入完成 ", "Embedded ") + "${w}×${h}" +
@@ -412,6 +434,7 @@ fun RacScreen(onBack: () -> Unit) {
         if (bmp == null) { embedStatus = t("还没有可保存的图片", "還沒有可保存的圖片", "Nothing to save yet"); return }
         val doSave: () -> Unit = { scope.launch {
             val ok = withContext(Dispatchers.Default) { TuyinImages.saveBitmapToGallery(context, bmp, name, "image/png", 100) }
+            if (ok) UnifiedHistory.add(context, "rac", "save", bmp)
             onResult(ok)
         } }
         if (Build.VERSION.SDK_INT <= 28 &&
