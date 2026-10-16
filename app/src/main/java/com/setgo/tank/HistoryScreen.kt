@@ -13,14 +13,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,37 +29,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.setgo.tank.core.LsbHistory
-import com.setgo.tank.core.LsbTank
+import coil.compose.AsyncImage
+import com.setgo.tank.core.UnifiedHistory
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** 嵌入历史页：查看 LSB 嵌入记录，点击展开详情，可清空。 */
+/** 统一历史记录页：聚合所有功能模块（LSB / RAC / 幻影 / 光棱 / 混淆）的操作记录，点击跳转对应模块并加载图片。 */
 @Composable
-fun HistoryScreen(onBack: () -> Unit) {
+fun HistoryScreen(onBack: () -> Unit, onOpenModule: (String, String) -> Unit) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    var entries by remember { mutableStateOf(LsbHistory.list(context)) }
-    var expandedIndex by remember { mutableIntStateOf(-1) }
+    var entries by remember { mutableStateOf(UnifiedHistory.list(context)) }
     var status by remember { mutableStateOf("") }
 
-    fun formatSize(n: Int): String = when {
-        n >= 1024 * 1024 -> String.format("%.1f MB", n / 1048576f)
-        n >= 1024 -> String.format("%.1f KB", n / 1024f)
-        else -> "$n B"
-    }
     val fmt = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     Column(modifier = Modifier.fillMaxSize().background(SuBg)) {
         SuiteFadingTopBar(
-            title = t("嵌入历史", "嵌入歷史", "History"),
+            title = t("历史记录", "歷史記錄", "History"),
             scrollOffset = scrollState.value.toFloat(),
             onBack = onBack,
             trailing = {
@@ -69,9 +65,8 @@ fun HistoryScreen(onBack: () -> Unit) {
                             .padding(end = 14.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
-                                LsbHistory.clear(context)
+                                UnifiedHistory.clear(context)
                                 entries = emptyList()
-                                expandedIndex = -1
                                 status = t("已清空历史", "已清空歷史", "History cleared")
                             }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -85,7 +80,7 @@ fun HistoryScreen(onBack: () -> Unit) {
         if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 BasicText(
-                    t("暂无嵌入记录", "暫無嵌入記錄", "No embed records yet"),
+                    t("暂无操作记录", "暫無操作記錄", "No records yet"),
                     style = TextStyle(color = SuSub, fontSize = 14.sp)
                 )
             }
@@ -95,68 +90,63 @@ fun HistoryScreen(onBack: () -> Unit) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 72.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                itemsIndexed(entries) { index, e ->
-                    val expanded = expandedIndex == index
-                    val isText = e.type == LsbTank.TYPE_TEXT
+                items(entries) { e ->
+                    val thumb = e.thumb
                     SuiteCard {
-                        Column(Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isText) Color(0xFF3482FF).copy(alpha = 0.14f) else Color(0xFF00A3C4).copy(alpha = 0.14f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    BasicText(
-                                        if (isText) t("文本", "文本", "Text") else t("文件", "檔案", "File"),
-                                        style = TextStyle(
-                                            color = if (isText) Color(0xFF3482FF) else Color(0xFF00A3C4),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    )
-                                }
-                                Spacer(Modifier.height(0.dp))
-                                Spacer(Modifier.padding(4.dp))
-                                BasicText(
-                                    fmt.format(Date(e.ts)),
-                                    style = TextStyle(color = SuSub, fontSize = 12.sp),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (e.encrypted) {
-                                    BasicText(t("已加密", "已加密", "Encrypted"), style = TextStyle(color = Color(0xFF9C5BFF), fontSize = 11.sp))
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { if (thumb != null) onOpenModule(e.module, thumb) }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { expandedIndex = if (expanded) -1 else index }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.CenterStart
+                                    .size(52.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SuSegBg),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Column {
-                                    BasicText(
-                                        text = if (isText) (if (expanded) e.summary else e.summary.take(40)) else e.summary,
-                                        style = TextStyle(color = SuTitle, fontSize = 13.sp),
-                                        maxLines = if (expanded) Int.MAX_VALUE else 1,
-                                        overflow = TextOverflow.Ellipsis
+                                if (thumb != null) {
+                                    AsyncImage(
+                                        model = File(thumb),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp))
                                     )
-                                    if (isText && e.summary.length > 40) {
-                                        Spacer(Modifier.height(4.dp))
+                                } else {
+                                    BasicText(moduleTag(e.module), style = TextStyle(color = SuSub, fontSize = 14.sp))
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    BasicText(
+                                        moduleLabel(e.module),
+                                        style = TextStyle(color = SuTitle, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(actionColor(e.action).copy(alpha = 0.14f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
                                         BasicText(
-                                            t(if (expanded) "点击收起" else "点击查看全文", if (expanded) "點擊收起" else "點擊查看全文", if (expanded) "Tap to collapse" else "Tap to expand"),
-                                            style = TextStyle(color = SuSub, fontSize = 11.sp)
+                                            actionLabel(e.action),
+                                            style = TextStyle(color = actionColor(e.action), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                         )
                                     }
                                 }
+                                Spacer(Modifier.height(4.dp))
+                                BasicText(
+                                    fmt.format(Date(e.ts)),
+                                    style = TextStyle(color = SuSub, fontSize = 12.sp)
+                                )
                             }
-                            Spacer(Modifier.height(4.dp))
-                            BasicText(
-                                t("大小：", "大小：", "Size: ") + formatSize(e.size),
-                                style = TextStyle(color = SuSub, fontSize = 12.sp)
-                            )
+                            Spacer(Modifier.width(6.dp))
+                            BasicText("›", style = TextStyle(color = SuSub, fontSize = 20.sp))
                         }
                     }
                 }
@@ -168,4 +158,44 @@ fun HistoryScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** 模块 id → 三语名称 */
+@Composable
+private fun moduleLabel(module: String): String = when (module) {
+    "lsb" -> t("LSB 隐写", "LSB 隱寫", "LSB Stegano")
+    "rac" -> t("RAC 图隐", "RAC 圖隱", "RAC Stegano")
+    "phantom" -> t("幻影坦克", "幻影坦克", "Phantom Tank")
+    "prism" -> t("光棱坦克", "光稜坦克", "Prism Tank")
+    "arnold" -> t("图片混淆", "圖片混淆", "Image Scramble")
+    else -> module
+}
+
+/** 模块 id → 无缩略图时占位字 */
+private fun moduleTag(module: String): String = when (module) {
+    "lsb" -> "位"
+    "rac" -> "隐"
+    "phantom" -> "幻"
+    "prism" -> "棱"
+    "arnold" -> "混"
+    else -> "图"
+}
+
+/** 操作类型 id → 三语名称 */
+@Composable
+private fun actionLabel(action: String): String = when (action) {
+    "encode" -> t("嵌入", "嵌入", "Encode")
+    "save" -> t("保存", "保存", "Save")
+    "scramble" -> t("混淆", "混淆", "Scramble")
+    "restore" -> t("还原", "還原", "Restore")
+    else -> action
+}
+
+/** 操作类型 id → 标签颜色 */
+private fun actionColor(action: String): Color = when (action) {
+    "encode" -> Color(0xFF3482FF)
+    "save" -> Color(0xFF00B96B)
+    "scramble" -> Color(0xFFFF7A00)
+    "restore" -> Color(0xFF9C5BFF)
+    else -> Color(0xFF8A8A8E)
 }
