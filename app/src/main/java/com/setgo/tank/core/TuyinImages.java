@@ -86,6 +86,26 @@ public final class TuyinImages {
         }
     }
 
+    /** 按目标长边采样解码本地文件（历史记录缩略图跳转加载等），不抛受检异常，失败返回 null。 */
+    public static Bitmap decodeFileScaled(String path, int targetLong) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, bounds);
+            int srcW = bounds.outWidth, srcH = bounds.outHeight;
+            if (srcW <= 0 || srcH <= 0) return null;
+            int sample = 1;
+            int longest = Math.max(srcW, srcH);
+            while (longest / (sample * 2) >= targetLong) sample *= 2;
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            opts.inSampleSize = sample;
+            return BitmapFactory.decodeFile(path, opts);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     private static Bitmap applyExifRotation(Context ctx, Uri uri, Bitmap src) {
         try {
             int rotation = 0;
@@ -270,6 +290,36 @@ public final class TuyinImages {
             }
         } catch (Throwable e) {
             // 捕获 OutOfMemoryError 等，避免保存大 PNG 时崩溃；返回 false 提示保存失败
+            return false;
+        }
+    }
+
+    /** 原样保存字节（JSteg JPEG 等不可再压缩产物）到相册（Pictures/图隐）。 */
+    public static boolean saveBytesToGallery(Context ctx, byte[] bytes, String name, String mime) {
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+                values.put(MediaStore.Images.Media.MIME_TYPE, mime);
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/图隐");
+                Uri uri = ctx.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+                try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                    if (os == null) return false;
+                    os.write(bytes);
+                    return true;
+                }
+            } else {
+                File dir = new File(Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_PICTURES), "图隐");
+                if (!dir.exists() && !dir.mkdirs()) return false;
+                File file = new File(dir, name);
+                try (FileOutputStream fos = new FileOutputStream(file)) {
+                    fos.write(bytes);
+                    return true;
+                }
+            }
+        } catch (Throwable e) {
             return false;
         }
     }
