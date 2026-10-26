@@ -34,10 +34,10 @@ jobs:
 
       - name: Build Release APK
         run: |
-          chmod +x gradlew
+          chmod +x android-compose/gradlew
           # GitHub Actions 网络无法访问阿里云镜像（502），改用官方仓库；仅 CI 生效，不影响本地
-          sed -i '/aliyun\.com/d' settings.gradle.kts
-          ./gradlew assembleRelease --no-daemon
+          sed -i '/aliyun\.com/d' android-compose/settings.gradle.kts
+          cd android-compose && ./gradlew assembleRelease --no-daemon
 
       - name: Determine version
         id: ver
@@ -46,7 +46,7 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             VER="${GITHUB_REF_NAME}"
           else
-            VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+            VER=$(grep -oP 'versionName = "\K[^"]+' android-compose/app/build.gradle.kts | head -1)
           fi
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
 
@@ -55,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER="${{ steps.ver.outputs.ver }}"
-          APK="app/build/outputs/apk/release/app-release.apk"
+          APK="android-compose/app/build/outputs/apk/release/app-release.apk"
           OUT="StegoTank-$VER.apk"
           cp "$APK" "$OUT"
           NOTES="自动构建自 GitHub Actions（StegoTank $VER）。更新日志详见仓库 RELEASE_NOTES.md"

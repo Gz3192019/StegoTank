@@ -247,8 +247,12 @@ object JpegTank {
 
     private data class Parsed(val coeffs: List<IntArray>)
 
-    /** 解析 JPEG：SOF0/DQT/DHT/SOS → 熵解码全部量化系数 */
-    private fun parseJpeg(bytes: ByteArray): Parsed {
+    /** 提取量化 DCT 系数（供隐写检测复用）；maxMcu>0 时只解码前 maxMcu 个 MCU（大图防卡顿）。 */
+    internal fun parseCoeffs(bytes: ByteArray, maxMcu: Int = 0): List<IntArray> =
+        parseJpeg(bytes, maxMcu.takeIf { it > 0 }).coeffs
+
+    /** 解析 JPEG：SOF0/DQT/DHT/SOS → 熵解码量化系数（maxMcu>0 截断） */
+    private fun parseJpeg(bytes: ByteArray, maxMcu: Int? = null): Parsed {
         var pos = 2
         var sof: Sof? = null
         val huffTables = arrayOfNulls<HuffTable>(4)
@@ -259,7 +263,7 @@ object JpegTank {
             val len = ((bytes[pos + 2].toInt() and 0xFF) shl 8) or (bytes[pos + 3].toInt() and 0xFF)
             if (marker == 0xDA) {
                 sof = sof ?: throw JpegException("SOF0 missing")
-                return Parsed(huffmanDecodeScan(bytes, pos + 2 + len, sof, huffTables))
+                return Parsed(huffmanDecodeScan(bytes, pos + 2 + len, sof, huffTables, maxMcu))
             }
             when (marker) {
                 0xC4 -> { // DHT
@@ -298,13 +302,13 @@ object JpegTank {
         throw JpegException("scan data not found")
     }
 
-    /** 熵解码扫描数据 → 各块量化系数（Y 2x2 + Cb + Cr 的 MCU 顺序，与嵌入一致） */
+    /** 熵解码扫描数据 → 各块量化系数（Y 2x2 + Cb + Cr 的 MCU 顺序，与嵌入一致；maxMcu 截断） */
     private fun huffmanDecodeScan(
-        bytes: ByteArray, start: Int, sof: Sof, huff: Array<HuffTable?>
+        bytes: ByteArray, start: Int, sof: Sof, huff: Array<HuffTable?>, maxMcu: Int?
     ): List<IntArray> {
         val mcuW = (sof.w + 15) / 16
         val mcuH = (sof.h + 15) / 16
-        val total = mcuW * mcuH
+        val total = maxMcu?.let { min(it, mcuW * mcuH) } ?: (mcuW * mcuH)
         val out = mutableListOf<IntArray>()
 
         val br = BitReader(bytes, start)
