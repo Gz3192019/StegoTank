@@ -13,8 +13,8 @@ android {
         applicationId = "com.setgo.tank"
         minSdk = 33
         targetSdk = 37
-        versionCode = 82
-        versionName = "v0.2.0.34.bate"
+        versionCode = 83
+        versionName = "v1.0.7"
     }
 
     buildFeatures {
